@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Тряси куб 🎲</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: radial-gradient(circle at 50% 30%, #2a2a4e, #0d0d1a);
+    font-family: -apple-system, system-ui, sans-serif;
+    color: #fff;
+    touch-action: none;
+    user-select: none;
+  }
+  #stage {
+    position: absolute; inset: 0;
+    perspective: 900px;
+  }
+  #cube {
+    position: absolute;
+    width: 100px; height: 100px;
+    transform-style: preserve-3d;
+    will-change: transform;
+    left: 0; top: 0;
+  }
+  .face {
+    position: absolute;
+    width: 100px; height: 100px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px; font-weight: bold;
+    box-shadow: inset 0 0 20px rgba(255,255,255,0.2);
+  }
+  .f1 { background: #ff4d6d; transform: translateZ(50px); }
+  .f2 { background: #4dc3ff; transform: rotateY(180deg) translateZ(50px); }
+  .f3 { background: #ffd84d; transform: rotateY(90deg) translateZ(50px); }
+  .f4 { background: #4dff88; transform: rotateY(-90deg) translateZ(50px); }
+  .f5 { background: #c84dff; transform: rotateX(90deg) translateZ(50px); }
+  .f6 { background: #ff8c4d; transform: rotateX(-90deg) translateZ(50px); }
+
+  #hud {
+    position: absolute; top: 10px; left: 0; right: 0;
+    text-align: center; font-size: 14px; opacity: 0.8;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .flash {
+    position: absolute;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff, transparent 70%);
+    pointer-events: none;
+    animation: flash 0.4s ease-out forwards;
+  }
+  @keyframes flash {
+    0% { transform: scale(0.5); opacity: 1; }
+    100% { transform: scale(3); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+  <div id="hud">Тапай по экрану или тряси телефон 👆📱</div>
+  <div id="stage">
+    <div id="cube">
+      <div class="face f1">1</div>
+      <div class="face f2">2</div>
+      <div class="face f3">3</div>
+      <div class="face f4">4</div>
+      <div class="face f5">5</div>
+      <div class="face f6">6</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const cube = document.getElementById('cube');
+  const stage = document.getElementById('stage');
+
+  const SIZE = 100;
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+
+  let x = W / 2 - SIZE / 2;
+  let y = H / 2 - SIZE / 2;
+  let vx = 0, vy = 0;
+  let rotX = 0, rotY = 0, rotZ = 0;
+  let vrX = 0, vrY = 0, vrZ = 0;
+
+  const FRICTION = 0.985;
+  const ROT_FRICTION = 0.99;
+  const BOUNCE = 0.75;
+  const GRAVITY = 0.15;
+  const SHAKE_THRESHOLD = 15;
+  const IMPULSE_MULT = 1.5;
+
+  let lastAcc = { x: 0, y: 0, z: 0 };
+
+  window.addEventListener('resize', () => {
+    W = window.innerWidth;
+    H = window.innerHeight;
+  });
+
+  function handleMotion(e) {
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+
+    const ax = a.x || 0, ay = a.y || 0, az = a.z || 0;
+    const dx = ax - lastAcc.x;
+    const dy = ay - lastAcc.y;
+    const dz = az - lastAcc.z;
+    const jerk = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+    if (jerk > SHAKE_THRESHOLD) {
+      vx += dx * IMPULSE_MULT;
+      vy -= dy * IMPULSE_MULT;
+      vrX += dy * 2;
+      vrY += dx * 2;
+      vrZ += dz * 1.5;
+    }
+    lastAcc = { x: ax, y: ay, z: az };
+  }
+
+  function flashAt(px, py) {
+    const f = document.createElement('div');
+    f.className = 'flash';
+    f.style.left = (px - 15) + 'px';
+    f.style.top = (py - 15) + 'px';
+    stage.appendChild(f);
+    setTimeout(() => f.remove(), 400);
+  }
+
+  function tick() {
+    vy += GRAVITY;
+    x += vx;
+    y += vy;
+
+    if (x < 0) { x = 0; vx = -vx * BOUNCE; flashAt(0, y + SIZE/2); }
+    if (x > W - SIZE) { x = W - SIZE; vx = -vx * BOUNCE; flashAt(W, y + SIZE/2); }
+    if (y < 0) { y = 0; vy = -vy * BOUNCE; flashAt(x + SIZE/2, 0); }
+    if (y > H - SIZE) { y = H - SIZE; vy = -vy * BOUNCE; flashAt(x + SIZE/2, H); }
+
+    vx *= FRICTION;
+    vy *= FRICTION;
+
+    rotX += vrX;
+    rotY += vrY;
+    rotZ += vrZ;
+    vrX *= ROT_FRICTION;
+    vrY *= ROT_FRICTION;
+    vrZ *= ROT_FRICTION;
+
+    cube.style.transform =
+      `translate3d(${x}px, ${y}px, 0) rotateX(${rotX}deg) rotateY(${rotY}deg) rotateZ(${rotZ}deg)`;
+
+    requestAnimationFrame(tick);
+  }
+
+  // Тап по экрану = встряска
+  document.addEventListener('touchstart', (e) => {
+    vx += (Math.random() - 0.5) * 30;
+    vy += (Math.random() - 0.5) * 30 - 10;
+    vrX += (Math.random() - 0.5) * 20;
+    vrY += (Math.random() - 0.5) * 20;
+  });
+
+  // Пытаемся подключить датчики
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined') {
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        DeviceMotionEvent.requestPermission().then(perm => {
+          if (perm === 'granted') {
+            window.addEventListener('devicemotion', handleMotion);
+          }
+        }).catch(err => console.log('Permission error:', err));
+      } else {
+        window.addEventListener('devicemotion', handleMotion);
+      }
+    }
+  } catch (err) {
+    console.log('Motion API error:', err);
+  }
+
+  // Запускаем сразу
+  tick();
+})();
+</script>
+</body>
+</html>
